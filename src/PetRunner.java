@@ -170,7 +170,7 @@ public final class PetRunner extends JPanel {
                     candidate = null; // The active session now owns the loader.
                 }
             } catch (NoSuchMethodException error) {
-                showError("Declare public String tick() (or public void tick() for an older pet).");
+                showError("Declare public String tick().");
             } catch (UnsupportedClassVersionError error) {
                 showError("This class was compiled for a newer Java version. "
                         + "Recompile the pet for this Java version or run the viewer on a newer JDK.");

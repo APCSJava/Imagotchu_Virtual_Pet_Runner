@@ -1,6 +1,6 @@
 # Virtual Pet Runner
 
-Compile a Java pet, open its `.class` file in the runner, and step through its behavior. The runner displays the pet's current fields and logs the full state after each action and tick. It uses standard Java 8 and Swing with no external libraries.
+Compile a Java pet, open its `.class` file in the runner, and step through its behavior. The runner displays the pet's current fields and records ticks and actions in the Activity log. It uses standard Java 8 and Swing with no external libraries.
 
 ## Quick start
 
@@ -32,14 +32,29 @@ The command above targets the JDK you compile with. On JDK 9 or later, add `--re
 
 ## Pet class contract
 
-- Write a public, concrete class in the default package and provide at least one public constructor and `public String tick()`. Each call to `tick()` should advance the simulation one step. Keep constructors and actions quick so the window can respond.
-- Return `""` when there is no new alert. Return an attention message to have the runner beep once and add it to the Activity log. Use `\n` between updates, as in `"I'm hungry!\nI need a nap!"`, to display them on separate lines. Returning the message lets the caller choose how to present it.
-- The runner also loads older pets with `public void tick()`. Those ticks advance the simulation silently.
-- Keep `name`, `health`, `happiness`, and at least one additional field private. Use a conditional rule in `tick()` that connects two pieces of state. For example, hunger above a threshold can reduce health.
-- Provide at least two public actions, one with a parameter. Supported inputs are `int`, `double`, `boolean`, and `String`. The runner labels unsupported constructors in the dropdown and disables action buttons with unsupported parameters.
-- For any `String` argument in a constructor or action, type `Brian` or `"Brian"`. Both pass the same value. The runner removes one pair of outer double quotes and keeps the text inside as typed.
-- The runner displays declared instance fields, including private fields. It makes buttons from the pet's declared public instance methods, with dedicated controls for `tick()` and automatic filtering of conventional getters for displayed fields. When an action returns a non-empty `String`, its Activity log entry shows the tick number and the message. The Current state pane still updates.
-- **Custom Ticks** accepts a positive whole number. The speed slider controls continuous mode and timed batches. While a batch is running, **Stop Batch** cancels its remaining ticks. Argument dialogs temporarily suspend time.
-- Open only pet classes you would run as ordinary Java programs. Constructors and methods execute inside the runner.
+- Write a public, concrete, top-level class in the default package.
+- The runner needs one usable public constructor. When you declare no constructors, Java supplies a public no-argument constructor for your public class. If you write your own constructors, at least one must be public and take either no arguments or arguments of type `int`, `double`, `boolean`, or `String`.
+- Declare `public String tick()` in your pet class. This is the only required method. Each call represents one step in the simulation. Return `""` for a step with no alert, or return a message to have the runner beep once and add it to the Activity log. Use `\n` for separate lines in a message.
 
-The sample pet is one possible design. Use the runner to try different starting conditions, then write a small driver that creates two pets and checks that changing one leaves the other alone.
+Save this minimal pet as `MyPet.java`, compile it, and open `MyPet.class` in the runner.
+
+```java
+public class MyPet {
+    public String tick() {
+        return "";
+    }
+}
+```
+
+## Design ideas
+
+- Give your pet private fields such as `name`, `health`, `happiness`, or `hunger`. Try a rule that connects two fields, such as reducing health when hunger reaches a threshold.
+- Add public actions such as `feed(int portions)` or `play()`. Try alternate constructors for different starting conditions.
+- Write a small driver that creates two pets and checks that changing one leaves the other alone.
+
+## Runner behavior
+
+- The Current state pane displays declared instance fields, including private fields. The runner turns declared public instance methods into action buttons, skipping conventional field getters and giving `tick()` its own controls. A non-empty `String` returned by an action appears with the tick number in the Activity log.
+- The runner labels unsupported constructors and disables action buttons with unsupported parameter types. For a `String` argument, `Brian` and `"Brian"` pass the same value. The runner removes one pair of outer double quotes and keeps the text inside as typed.
+- **Custom Ticks** accepts a positive whole number. The speed slider controls continuous mode and timed batches. **Stop Batch** cancels the remaining ticks in a batch. Argument dialogs temporarily suspend time.
+- Keep constructors and actions quick so the window can respond. Open only pet classes you would run as ordinary Java programs. Constructors and methods execute inside the runner.
