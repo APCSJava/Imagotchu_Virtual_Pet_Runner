@@ -17,7 +17,7 @@ import javax.swing.SwingUtilities;
 /** Dependency-free checks for the sample, reflection, input form, and Swing controls. */
 public class PetRunnerTest {
     public static void main(String[] args) throws Exception {
-        Path file = Paths.get(args.length > 0 ? args[0] : "VirtualPet.class");
+        Path file = Paths.get(args.length > 0 ? args[0] : "SamplePet.class");
         try (PetClass petClass = PetClass.load(file)) {
             checkModel(petClass);
         }
@@ -27,7 +27,7 @@ public class PetRunnerTest {
     }
 
     private static void checkModel(PetClass petClass) throws Exception {
-        check(petClass.type != VirtualPet.class, "The selected class needs its own loader.");
+        check(petClass.type != SamplePet.class, "The selected class needs its own loader.");
         check(petClass.constructors.size() == 3, "Discover all three sample constructors.");
 
         Object mochi = petClass.type.getConstructor().newInstance();
@@ -40,13 +40,18 @@ public class PetRunnerTest {
         Map<String, String> pipBefore = petClass.snapshot(pip);
         check("\"Pip\"".equals(pipBefore.get("name")), "Read a private name.");
         for (int i = 0; i < 6; i++) {
-            petClass.tick.invoke(mochi);
+            String expected = i == 5 ? "I'm hungry!" : "";
+            check(expected.equals(petClass.tick.invoke(mochi)), "Alert when hunger reaches eight.");
         }
         Map<String, String> afterTicks = petClass.snapshot(mochi);
         check("8".equals(afterTicks.get("hunger")), "Six ticks add six to hunger.");
         check("7".equals(afterTicks.get("health")), "Hunger at eight reduces health.");
         petClass.type.getMethod("feed", int.class).invoke(mochi, 3);
         check("5".equals(petClass.snapshot(mochi).get("hunger")), "Feeding uses its argument.");
+        check("".equals(petClass.tick.invoke(mochi)), "Feeding lets hunger fall below the threshold.");
+        check("".equals(petClass.tick.invoke(mochi)), "Hunger at seven is below the threshold.");
+        check("I'm hungry!".equals(petClass.tick.invoke(mochi)), "Alert again after feeding.");
+        check("".equals(petClass.tick.invoke(mochi)), "Staying hungry produces no repeat alert.");
         check(pipBefore.equals(petClass.snapshot(pip)), "Each pet has its own independent state.");
         check(petClass.actions.stream().noneMatch(method -> method.equals(petClass.tick)),
                 "The time controls own tick().");
@@ -55,7 +60,7 @@ public class PetRunnerTest {
     private static void checkForm() throws Exception {
         onEdt(() -> {
             Method method = InputTypes.class.getMethod("act",
-                    int.class, double.class, boolean.class, String.class);
+                    int.class, double.class, boolean.class, String.class, String.class);
             ArgumentsPanel form = new ArgumentsPanel(method);
             ((JTextField) form.getComponent(1)).setText("bad");
             try {
@@ -67,17 +72,40 @@ public class PetRunnerTest {
             ((JTextField) form.getComponent(1)).setText("3");
             ((JTextField) form.getComponent(3)).setText(" 2.5 ");
             ((JComboBox<?>) form.getComponent(5)).setSelectedItem(Boolean.TRUE);
-            ((JTextField) form.getComponent(7)).setText(" Song ");
+            JTextField firstString = (JTextField) form.getComponent(7);
+            JTextField secondString = (JTextField) form.getComponent(9);
+            firstString.setText(" Song ");
+            secondString.setText("\"Say \"hello\"\"");
             Object[] values = form.values();
             check(values[0].equals(3) && values[1].equals(2.5)
-                    && values[2].equals(true) && values[3].equals(" Song "),
+                    && values[2].equals(true) && values[3].equals(" Song ")
+                    && values[4].equals("Say \"hello\""),
                     "Read all four supported input types.");
+            firstString.setText("\"Brian\"");
+            secondString.setText("\"\"");
+            values = form.values();
+            check(values[3].equals("Brian") && values[4].equals(""),
+                    "Strip paired outer quotes from each String argument.");
+            firstString.setText("\"");
+            secondString.setText("\"Brian");
+            values = form.values();
+            check(values[3].equals("\"") && values[4].equals("\"Brian"),
+                    "Preserve unmatched quotes.");
+
+            Constructor<SamplePet> constructor = SamplePet.class.getConstructor(String.class);
+            ArgumentsPanel constructorForm = new ArgumentsPanel(constructor);
+            JTextField name = (JTextField) constructorForm.getComponent(1);
+            name.setText("Brian");
+            Object[] unquoted = constructorForm.values();
+            name.setText("\"Brian\"");
+            check("Brian".equals(unquoted[0]) && unquoted[0].equals(constructorForm.values()[0]),
+                    "Constructors receive the same String with or without outer quotes.");
             return null;
         });
     }
 
     public static class InputTypes {
-        public void act(int count, double amount, boolean active, String song) {
+        public void act(int count, double amount, boolean active, String song, String title) {
         }
     }
 
@@ -99,14 +127,18 @@ public class PetRunnerTest {
             await(() -> onEdt(() -> button(runner, "1 Tick").isEnabled()));
             onEdt(() -> {
                 check(tickCount(runner) == 6, "The five-tick batch logs every step.");
+                check(log(runner).contains("hunger=8, name=\"Mochi\"\nI'm hungry!\n"),
+                        "Append the alert to the regular tick output.");
                 button(runner, "10 Ticks").doClick(0);
                 return null;
             });
             await(() -> onEdt(() -> button(runner, "1 Tick").isEnabled()));
             onEdt(() -> {
                 check(tickCount(runner) == 16, "The ten-tick batch stops after exactly ten ticks.");
-                button(runner, "putToSleep()").doClick(0);
-                check(log(runner).contains("[Tick 16] putToSleep() | asleep=true"),
+                check(log(runner).indexOf("I'm hungry!") == log(runner).lastIndexOf("I'm hungry!"),
+                        "The activity log contains a single hunger alert.");
+                button(runner, "sleep()").doClick(0);
+                check(log(runner).contains("[Tick 16] sleep() | asleep=true"),
                         "Actions report state without advancing time.");
                 button(runner, "Run").doClick(0);
                 return null;

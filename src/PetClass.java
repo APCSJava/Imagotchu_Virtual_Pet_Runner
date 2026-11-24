@@ -55,9 +55,11 @@ final class PetClass implements AutoCloseable {
             throw new IllegalArgumentException("Choose a public, concrete, top-level pet class.");
         }
         tick = type.getDeclaredMethod("tick");
+        Class<?> returnType = tick.getReturnType();
         if (!Modifier.isPublic(tick.getModifiers()) || Modifier.isStatic(tick.getModifiers())
-                || tick.getReturnType() != void.class) {
-            throw new IllegalArgumentException("The pet must declare public void tick().");
+                || (returnType != String.class && returnType != void.class)) {
+            throw new IllegalArgumentException("Declare public String tick() "
+                    + "(or public void tick() for an older pet).");
         }
 
         constructors.addAll(Arrays.asList(type.getConstructors()));

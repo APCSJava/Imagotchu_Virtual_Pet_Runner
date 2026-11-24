@@ -59,6 +59,8 @@ final class ArgumentsPanel extends JPanel {
                         throw new NumberFormatException();
                     }
                     arguments[i] = value;
+                } else if (input.length() >= 2 && input.startsWith("\"") && input.endsWith("\"")) {
+                    arguments[i] = input.substring(1, input.length() - 1);
                 } else {
                     arguments[i] = input;
                 }

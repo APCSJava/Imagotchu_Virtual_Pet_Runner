@@ -3,6 +3,7 @@ import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
+import java.awt.Toolkit;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.IOException;
@@ -169,7 +170,7 @@ public final class PetRunner extends JPanel {
                     candidate = null; // The active session now owns the loader.
                 }
             } catch (NoSuchMethodException error) {
-                showError("Pet class must declare public void tick().");
+                showError("Declare public String tick() (or public void tick() for an older pet).");
             } catch (UnsupportedClassVersionError error) {
                 showError("This class was compiled for a newer Java version. "
                         + "Recompile the pet for this Java version or run the viewer on a newer JDK.");
@@ -209,7 +210,7 @@ public final class PetRunner extends JPanel {
         }
         actions.revalidate();
         actions.repaint();
-        record("Initial state", initial);
+        record("Initial state", initial, null);
         updateControls();
     }
 
@@ -224,15 +225,18 @@ public final class PetRunner extends JPanel {
                 values.add(PetClass.displayValue(argument));
             }
             String event = values.toString();
+            String message = null;
             try {
                 Object result = action.invoke(pet, arguments);
-                if (action.getReturnType() != void.class) {
+                if (action.getReturnType() == String.class) {
+                    message = (String) result;
+                } else if (action.getReturnType() != void.class) {
                     event += " returned " + PetClass.displayValue(result);
                 }
             } catch (ReflectiveOperationException | RuntimeException | LinkageError error) {
                 event += " failed: " + describe(error);
             }
-            refreshAfter(event);
+            refreshAfter(event, message);
         });
     }
 
@@ -300,9 +304,15 @@ public final class PetRunner extends JPanel {
 
     private boolean advanceOne() {
         try {
-            petClass.tick.invoke(pet);
+            String message = (String) petClass.tick.invoke(pet);
             ticks++;
-            return refreshAfter("tick()");
+            boolean refreshed = refreshAfter("tick()");
+            if (message != null && !message.isEmpty()) {
+                history.append(message + "\n");
+                history.setCaretPosition(history.getDocument().getLength());
+                Toolkit.getDefaultToolkit().beep();
+            }
+            return refreshed;
         } catch (ReflectiveOperationException | RuntimeException | LinkageError error) {
             stop();
             refreshAfter("tick() failed: " + describe(error));
@@ -311,8 +321,12 @@ public final class PetRunner extends JPanel {
     }
 
     private boolean refreshAfter(String event) {
+        return refreshAfter(event, null);
+    }
+
+    private boolean refreshAfter(String event, String message) {
         try {
-            record(event, petClass.snapshot(pet));
+            record(event, petClass.snapshot(pet), message);
             updateControls();
             return true;
         } catch (ReflectiveOperationException | RuntimeException | LinkageError error) {
@@ -324,7 +338,7 @@ public final class PetRunner extends JPanel {
         }
     }
 
-    private void record(String event, Map<String, String> snapshot) {
+    private void record(String event, Map<String, String> snapshot, String message) {
         StringBuilder current = new StringBuilder();
         StringJoiner logValues = new StringJoiner(", ");
         boolean changed = false;
@@ -343,9 +357,11 @@ public final class PetRunner extends JPanel {
         state.setText(current.length() > 0 ? current.toString() : "No instance fields.");
         state.setCaretPosition(0);
         String unchanged = !changed && !event.equals("Initial state") ? " (no state change)" : "";
-        history.append("[Tick " + ticks + "] " + event + " | "
-                + (snapshot.isEmpty() ? "No instance fields" : logValues.toString())
-                + unchanged + "\n");
+        String entry = message != null && !message.isEmpty()
+                ? message
+                : event + " | " + (snapshot.isEmpty() ? "No instance fields" : logValues.toString())
+                        + unchanged;
+        history.append("[Tick " + ticks + "] " + entry + "\n");
         history.setCaretPosition(history.getDocument().getLength());
         previous = snapshot;
     }
